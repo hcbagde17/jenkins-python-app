@@ -4,13 +4,13 @@ stage('Deploy to App VM') {
             sh '''
                 echo "Deploying with systemd..."
 
-                ssh -o StrictHostKeyChecking=no managed-instance@35.192.31.192 \
-                    "mkdir -p /home/managed-instance/app"
+                ssh -o StrictHostKeyChecking=no videofilestill2024@35.192.31.192 \
+                    "mkdir -p /home/videofilestill2024/app"
 
                 scp -o StrictHostKeyChecking=no -r * \
-                    APP_USER@APP_IP:/home/managed-instance/app/
+                    videofilestill2024@35.192.31.192:/home/videofilestill2024/app/
 
-                ssh -o StrictHostKeyChecking=no managed-instance@35.192.31.192 "
+                ssh -o StrictHostKeyChecking=no videofilestill2024@35.192.31.192 "
                     sudo systemctl daemon-reload &&
                     sudo systemctl restart flaskapp &&
                     sudo systemctl enable flaskapp
