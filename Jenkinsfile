@@ -92,71 +92,75 @@ pipeline {
                     )
                 ]) {
 
-                    sh '''
-                        echo "Waiting for SonarQube analysis to finish..."
+                    withSonarQubeEnv('sonarqube') {
 
-                        REPORT_FILE=".scannerwork/report-task.txt"
+                        sh '''
+                            echo "Waiting for SonarQube analysis to finish..."
 
-                        if [ ! -f "$REPORT_FILE" ]; then
-                            echo "ERROR: report-task.txt was not found."
-                            exit 1
-                        fi
+                            REPORT_FILE=".scannerwork/report-task.txt"
 
-                        CE_TASK_ID=$(grep "^ceTaskId=" "$REPORT_FILE" | cut -d= -f2)
-
-                        if [ -z "$CE_TASK_ID" ]; then
-                            echo "ERROR: Could not find SonarQube task ID."
-                            exit 1
-                        fi
-
-                        echo "SonarQube Task ID: $CE_TASK_ID"
-
-                        STATUS="PENDING"
-
-                        for i in $(seq 1 60)
-                        do
-                            STATUS=$(curl -s \
-                                -u "$SONAR_TOKEN:" \
-                                "$SONAR_HOST_URL/api/ce/task?id=$CE_TASK_ID" \
-                                | jq -r '.task.status')
-
-                            echo "SonarQube processing status: $STATUS"
-
-                            if [ "$STATUS" = "SUCCESS" ]; then
-                                break
-                            fi
-
-                            if [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "CANCELED" ]; then
-                                echo "SonarQube analysis processing failed."
+                            if [ ! -f "$REPORT_FILE" ]; then
+                                echo "ERROR: report-task.txt was not found."
                                 exit 1
                             fi
 
-                            sleep 5
-                        done
+                            CE_TASK_ID=$(grep "^ceTaskId=" "$REPORT_FILE" | cut -d= -f2)
 
-                        if [ "$STATUS" != "SUCCESS" ]; then
-                            echo "Timed out waiting for SonarQube."
-                            exit 1
-                        fi
+                            if [ -z "$CE_TASK_ID" ]; then
+                                echo "ERROR: Could not find SonarQube task ID."
+                                exit 1
+                            fi
 
-                        echo "SonarQube analysis processing completed."
+                            echo "SonarQube Task ID: $CE_TASK_ID"
+                            echo "SonarQube Server: $SONAR_HOST_URL"
 
-                        echo "Checking Quality Gate..."
+                            STATUS="PENDING"
 
-                        QUALITY_STATUS=$(curl -s \
-                            -u "$SONAR_TOKEN:" \
-                            "$SONAR_HOST_URL/api/qualitygates/project_status?projectKey=hello-python" \
-                            | jq -r '.projectStatus.status')
+                            for i in $(seq 1 60)
+                            do
+                                STATUS=$(curl -s \
+                                    -u "$SONAR_TOKEN:" \
+                                    "$SONAR_HOST_URL/api/ce/task?id=$CE_TASK_ID" \
+                                    | jq -r '.task.status')
 
-                        echo "Quality Gate Status: $QUALITY_STATUS"
+                                echo "SonarQube processing status: $STATUS"
 
-                        if [ "$QUALITY_STATUS" != "OK" ]; then
-                            echo "Quality Gate failed."
-                            exit 1
-                        fi
+                                if [ "$STATUS" = "SUCCESS" ]; then
+                                    break
+                                fi
 
-                        echo "Quality Gate passed successfully."
-                    '''
+                                if [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "CANCELED" ]; then
+                                    echo "SonarQube analysis processing failed."
+                                    exit 1
+                                fi
+
+                                sleep 5
+                            done
+
+                            if [ "$STATUS" != "SUCCESS" ]; then
+                                echo "Timed out waiting for SonarQube."
+                                exit 1
+                            fi
+
+                            echo "SonarQube analysis processing completed."
+
+                            echo "Checking Quality Gate..."
+
+                            QUALITY_STATUS=$(curl -s \
+                                -u "$SONAR_TOKEN:" \
+                                "$SONAR_HOST_URL/api/qualitygates/project_status?projectKey=hello-python" \
+                                | jq -r '.projectStatus.status')
+
+                            echo "Quality Gate Status: $QUALITY_STATUS"
+
+                            if [ "$QUALITY_STATUS" != "OK" ]; then
+                                echo "Quality Gate failed."
+                                exit 1
+                            fi
+
+                            echo "Quality Gate passed successfully."
+                        '''
+                    }
                 }
             }
         }
@@ -164,11 +168,11 @@ pipeline {
 
     post {
         success {
-            echo 'Pipeline Succeeded'
+            echo "Pipeline Succeeded"
         }
 
         failure {
-            echo 'Pipeline Failed'
+            echo "Pipeline Failed"
         }
     }
 }
