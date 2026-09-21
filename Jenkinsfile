@@ -6,7 +6,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 git branch: 'main',
-                    url: 'https://github.com/hcbagde17/jenk>
+                    url: 'https://github.com/hcbagde17/jenkins-python-app.git'
             }
         }
 
