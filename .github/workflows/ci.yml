@@ -22,4 +22,11 @@ jobs:
           pip install -r requirements.txt
 
       - run: |
-          pytest -q
+          echo "Current directory:"
+          pwd
+          echo "Repository files:"
+          ls -la
+          echo "Testing app import:"
+          PYTHONPATH=. python -c "from app import app; print('app import successful')"
+          echo "Running tests:"
+          PYTHONPATH=. python -m pytest -q
