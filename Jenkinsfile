@@ -39,18 +39,22 @@ pipeline {
                         variable: 'SONAR_TOKEN'
                     )
                 ]) {
+
                     withSonarQubeEnv('sonarqube') {
-                        withEnv([
-                            "PATH+SONAR=${tool 'SonarScanner'}"
-                        ]) {
-                            sh '''
-                                sonar-scanner \
+
+                        script {
+                            def scannerHome = tool 'SonarScanner'
+
+                            sh """
+                                echo "Running SonarQube Scanner..."
+
+                                "${scannerHome}/bin/sonar-scanner" \
                                   -Dsonar.projectKey=hello-python \
                                   -Dsonar.sources=. \
-                                  -Dsonar.host.url=$SONAR_HOST_URL \
-                                  -Dsonar.token=$SONAR_TOKEN \
+                                  -Dsonar.host.url="${SONAR_HOST_URL}" \
+                                  -Dsonar.token="${SONAR_TOKEN}" \
                                   -Dsonar.python.version=3.10
-                            '''
+                            """
                         }
                     }
                 }
@@ -65,22 +69,23 @@ pipeline {
                         variable: 'SONAR_TOKEN'
                     )
                 ]) {
+
                     sh '''
                         echo "Checking SonarQube Quality Gate..."
 
                         STATUS=$(curl -s \
-                          -u "$SONAR_TOKEN:" \
-                          "http://34.67.125.36:9000/api/qualitygates/project_status?projectKey=hello-python" \
-                          | jq -r '.projectStatus.status')
+                            -u "$SONAR_TOKEN:" \
+                            "http://34.67.125.36:9000/api/qualitygates/project_status?projectKey=hello-python" \
+                            | jq -r '.projectStatus.status')
 
                         echo "Quality Gate Status: $STATUS"
 
                         if [ "$STATUS" != "OK" ]; then
-                            echo "Quality Gate did not pass."
+                            echo "Quality Gate failed."
                             exit 1
                         fi
 
-                        echo "Quality Gate Passed."
+                        echo "Quality Gate passed."
                     '''
                 }
             }
@@ -89,11 +94,11 @@ pipeline {
 
     post {
         success {
-            echo 'Pipeline Succeeded'
+            echo "Pipeline Succeeded"
         }
 
         failure {
-            echo 'Pipeline Failed'
+            echo "Pipeline Failed"
         }
     }
 }
