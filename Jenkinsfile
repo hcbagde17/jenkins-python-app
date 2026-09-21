@@ -3,26 +3,84 @@ pipeline {
 
     stages {
 
-        stage('Deploy to App VM') {
+        stage('Checkout') {
             steps {
-                sshagent(credentials: ['gce-ssh']) {
+                git branch: 'main',
+                    url: 'https://github.com/hcbagde17/jenkins-python-app.git'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh '''
+                    echo "Installing dependencies..."
+                    python3 -m pip install --user -r requirements.txt
+
+                    echo "Compiling Python files..."
+                    python3 -m compileall -q .
+                '''
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh '''
+                    echo "Running tests..."
+                    python3 -m pytest -q
+                '''
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'sonar-token',
+                        variable: 'SONAR_TOKEN'
+                    )
+                ]) {
+                    withSonarQubeEnv('sonarqube') {
+                        withEnv([
+                            "PATH+SONAR=${tool 'SonarScanner'}"
+                        ]) {
+                            sh '''
+                                sonar-scanner \
+                                  -Dsonar.projectKey=hello-python \
+                                  -Dsonar.sources=. \
+                                  -Dsonar.host.url=$SONAR_HOST_URL \
+                                  -Dsonar.token=$SONAR_TOKEN \
+                                  -Dsonar.python.version=3.10
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'sonar-token',
+                        variable: 'SONAR_TOKEN'
+                    )
+                ]) {
                     sh '''
-                        echo "Deploying with systemd..."
+                        echo "Checking SonarQube Quality Gate..."
 
-                        ssh -o StrictHostKeyChecking=no \
-                            videofilestill2024@35.192.31.192 \
-                            "mkdir -p /home/videofilestill2024/app"
+                        STATUS=$(curl -s \
+                          -u "$SONAR_TOKEN:" \
+                          "http://34.67.125.36:9000/api/qualitygates/project_status?projectKey=hello-python" \
+                          | jq -r '.projectStatus.status')
 
-                        scp -o StrictHostKeyChecking=no -r * \
-                            videofilestill2024@35.192.31.192:/home/videofilestill2024/app/
+                        echo "Quality Gate Status: $STATUS"
 
-                        ssh -o StrictHostKeyChecking=no \
-                            videofilestill2024@35.192.31.192 \
-                            "sudo systemctl daemon-reload && \
-                             sudo systemctl restart flaskapp && \
-                             sudo systemctl enable flaskapp"
+                        if [ "$STATUS" != "OK" ]; then
+                            echo "Quality Gate did not pass."
+                            exit 1
+                        fi
 
-                        echo "Deployment complete."
+                        echo "Quality Gate Passed."
                     '''
                 }
             }
@@ -31,11 +89,11 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline Succeeded"
+            echo 'Pipeline Succeeded'
         }
 
         failure {
-            echo "Pipeline Failed"
+            echo 'Pipeline Failed'
         }
     }
 }
